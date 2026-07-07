@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ESP Log Viewer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0E1620; --bg2:#131E2B; --panel:#18242F; --panel2:#1D2C3A;
+  --line:#26384A; --line2:#324A61; --ink:#E6EDF3; --muted:#8A9BA8; --faint:#5C6F7E;
+  --amber:#F2A93B; --teal:#3FB6A8; --crit:#E5544B;
+  --trip:#E5544B; --alarm:#E8894A; --warning:#F2A93B; --drive:#3FB6A8; --operator:#4FB0C6; --config:#B98CE6; --system:#6E8496; --other:#6E8496;
+  --shadow:0 8px 30px rgba(0,0,0,.35);
+  --mono:'JetBrains Mono',monospace; --disp:'Space Grotesk',sans-serif; --body:'Inter',sans-serif;
+}
+*{box-sizing:border-box} html,body{margin:0;background:
+  radial-gradient(1200px 600px at 80% -10%, #17293a 0%, transparent 60%),
+  radial-gradient(900px 500px at -10% 20%, #14202e 0%, transparent 55%), var(--bg);
+  color:var(--ink); font-family:var(--body); line-height:1.5; -webkit-font-smoothing:antialiased}
+.wrap{max-width:1080px; margin:0 auto; padding:26px 20px 80px}
+header{display:flex; align-items:flex-end; justify-content:space-between; gap:16px; flex-wrap:wrap; border-bottom:1px solid var(--line); padding-bottom:18px; margin-bottom:24px}
+.brand{display:flex; align-items:center; gap:14px}
+.mark{width:46px;height:46px;flex:none;border:1px solid var(--line2);border-radius:10px;display:grid;place-items:center;background:linear-gradient(160deg,#1c2c3b,#141f2b)}
+h1{font-family:var(--disp); font-weight:700; font-size:22px; letter-spacing:-.01em; margin:0}
+.sub{color:var(--muted); font-size:12.5px; margin-top:2px; font-family:var(--mono); letter-spacing:.02em}
+.head-right{display:flex; flex-direction:column; align-items:flex-end; gap:10px}
+.lang{display:inline-flex; border:1px solid var(--line); border-radius:8px; overflow:hidden}
+.lang button{background:transparent; color:var(--muted); border:none; padding:6px 13px; font-family:var(--mono); font-size:12px; cursor:pointer}
+.lang button.on{background:var(--amber); color:#10202b; font-weight:700}
+.status{font-family:var(--mono); font-size:11.5px; text-align:right; color:var(--muted)}
+.status b{color:var(--teal)} .status .bad{color:var(--crit)}
+.panel{background:linear-gradient(180deg,var(--panel),var(--bg2)); border:1px solid var(--line); border-radius:14px; padding:22px; box-shadow:var(--shadow)}
+.eyebrow{font-family:var(--mono); font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--faint); margin:0 0 10px}
+.drop{border:1.5px dashed var(--line2); border-radius:12px; padding:20px 18px; text-align:center; cursor:pointer; transition:.18s; background:rgba(255,255,255,.012)}
+.drop:hover,.drop.hot{border-color:var(--amber); background:rgba(242,169,59,.06)}
+.drop h3{font-family:var(--disp); margin:6px 0 3px; font-size:15px}
+.drop p{color:var(--muted); font-size:12px; margin:0}
+.drop .ic{font-size:22px; color:var(--amber)}
+.hint{color:var(--faint); font-size:11px; font-family:var(--mono); margin-top:9px}
+.drop.compact{display:flex; align-items:center; justify-content:center; gap:10px; padding:11px 16px}
+.drop.compact .ic{font-size:16px; margin:0} .drop.compact h3{margin:0; font-size:13px}
+.drop.compact p, .drop.compact .hint{display:none}
+.err{color:var(--crit); font-family:var(--mono); font-size:12.5px; margin-top:12px}
+.result{margin-top:20px; display:none}
+.metaline{font-family:var(--mono); font-size:12px; color:var(--muted); margin-bottom:16px}
+.metaline b{color:var(--ink)}
+/* summary chips */
+.chips{display:flex; flex-wrap:wrap; gap:7px; margin-bottom:16px}
+.chip{display:inline-flex; align-items:center; gap:7px; padding:6px 12px; border:1px solid var(--line); border-radius:9px; font-family:var(--mono); font-size:12px; color:var(--muted); cursor:pointer; user-select:none; transition:.12s}
+.chip.on{color:var(--ink); border-color:var(--line2); background:var(--panel2)}
+.chip.off{opacity:.4}
+.chip .cdot{width:9px; height:9px; border-radius:2px; flex:none}
+.chip .cc{font-weight:700}
+/* timeline */
+.tl{position:relative; height:44px; background:var(--panel2); border:1px solid var(--line); border-radius:8px; margin-bottom:6px; overflow:hidden}
+.tl i{position:absolute; top:4px; bottom:4px; width:2px; border-radius:1px}
+.tllabels{display:flex; justify-content:space-between; font-family:var(--mono); font-size:10px; color:var(--faint); margin-bottom:16px}
+/* controls */
+.ctrls{display:flex; gap:10px; align-items:center; margin-bottom:14px; flex-wrap:wrap}
+.search{flex:1; min-width:180px; background:var(--panel2); color:var(--ink); border:1px solid var(--line); border-radius:8px; padding:9px 12px; font-family:var(--body); font-size:13px}
+.search:focus{outline:none; border-color:var(--amber)}
+.btn{font-family:var(--disp); font-weight:600; font-size:12.5px; padding:8px 14px; border-radius:8px; cursor:pointer; border:1px solid var(--line); background:transparent; color:var(--muted)}
+.btn:hover{color:var(--ink); border-color:var(--line2)}
+.count{font-family:var(--mono); font-size:11px; color:var(--faint); margin-bottom:8px}
+/* table */
+table{width:100%; border-collapse:collapse; font-size:13px}
+th{text-align:left; padding:7px 10px; border-bottom:1px solid var(--line); font-family:var(--mono); font-size:10.5px; letter-spacing:.05em; color:var(--faint); text-transform:uppercase; font-weight:500; position:sticky; top:0; background:var(--bg2)}
+td{padding:7px 10px; border-bottom:1px solid rgba(38,56,74,.5); vertical-align:top}
+tr.cleared td{opacity:.5}
+td.time{font-family:var(--mono); font-size:12px; color:var(--muted); white-space:nowrap}
+td.cat{white-space:nowrap}
+.badge{display:inline-block; font-family:var(--mono); font-size:10px; font-weight:700; padding:2px 8px; border-radius:20px; letter-spacing:.03em}
+td.evt{font-size:13px; color:var(--ink)}
+.tbl-scroll{max-height:520px; overflow:auto; border:1px solid var(--line); border-radius:10px}
+.foot{color:var(--faint); font-size:11px; font-family:var(--mono); text-align:center; margin-top:34px}
+.hidden{display:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <div class="mark" aria-hidden="true">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
+          <rect x="4" y="3" width="14" height="18" rx="2" stroke="#3FB6A8" stroke-width="1.4"/>
+          <path d="M7 7h8M7 10.5h8M7 14h5" stroke="#8A9BA8" stroke-width="1.3" stroke-linecap="round"/>
+          <circle cx="18" cy="17" r="4.3" fill="#0E1620" stroke="#F2A93B" stroke-width="1.4"/>
+          <path d="M18 15v2.2l1.4 1" stroke="#F2A93B" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <div>
+        <h1 id="t-title">ESP Log Viewer</h1>
+        <div class="sub" id="t-sub">VSD event &amp; alarm log · filter &amp; timeline</div>
+      </div>
+    </div>
+    <div class="head-right">
+      <div class="lang" id="langToggle">
+        <button data-lang="en" class="on">EN</button>
+        <button data-lang="id">ID</button>
+      </div>
+      <div class="status" id="status"></div>
+    </div>
+  </header>
+
+  <section class="panel">
+    <p class="eyebrow" id="t-eyebrow">Data source · VSD event log</p>
+    <div class="drop" id="drop">
+      <div class="ic">↧</div>
+      <h3 id="t-droptitle">Drop your log CSV here</h3>
+      <p id="t-dropsub">or click to choose · VSD event/alarm export (Date time, Event)</p>
+      <input type="file" id="file" accept=".csv,.log,.txt" class="hidden">
+      <div class="hint" id="t-drophint">events are auto-categorized: trip, alarm, warning, drive, operator, config, system</div>
+    </div>
+    <div class="err hidden" id="err"></div>
+  </section>
+
+  <section class="result panel" id="result">
+    <div class="metaline" id="metaline"></div>
+    <div class="chips" id="chips"></div>
+    <div class="tl" id="timeline"></div>
+    <div class="tllabels"><span id="tlStart"></span><span id="tlEnd"></span></div>
+    <div class="ctrls">
+      <input class="search" id="search" placeholder="Search events…">
+      <button class="btn" id="exportCsv">Export CSV</button>
+    </div>
+    <div class="count" id="count"></div>
+    <div class="tbl-scroll">
+      <table><thead><tr><th id="t-colTime">Time</th><th id="t-colCat">Category</th><th id="t-colEvt">Event</th></tr></thead>
+      <tbody id="tbody"></tbody></table>
+    </div>
+  </section>
+
+  <div class="foot" id="foot">ESP Log Viewer · standalone</div>
+</div>
+
+<script>
+"use strict";
+let LANG='en', EVENTS=[], META={}, ACTIVE=new Set(), SEARCH='';
+
+/* ---------- categories ---------- */
+const CATS=['trip','alarm','warning','drive','operator','config','system','other'];
+const CATCOLOR={trip:'#E5544B',alarm:'#E8894A',warning:'#F2A93B',drive:'#3FB6A8',operator:'#4FB0C6',config:'#B98CE6',system:'#6E8496',other:'#6E8496'};
+function categorize(ev){
+  const s=ev.toLowerCase();
+  if(/trip|lock ?out|locked out|lockout/.test(s)) return 'trip';
+  if(/warning/.test(s)) return 'warning';
+  if(/alarm/.test(s)) return 'alarm';
+  if(/drive (start|stop)|drive started|drive stopped/.test(s)) return 'drive';
+  if(/button pressed|manual-?(start|off)|unlatch|switched to manual/.test(s)) return 'operator';
+  if(/target frequency|accel|ramp|revonfly|reverse direction|bypass|frequency/.test(s)) return 'config';
+  if(/power|boot|firmware|display card|output file|initializing|version|sys on/.test(s)) return 'system';
+  return 'other';
+}
+const isCleared=s=>/clear|cleared|clr|disabled|lockout cleared|\b0\b\s*$/.test(s.toLowerCase());
+
+/* ---------- i18n ---------- */
+const T={
+  en:{title:"ESP Log Viewer", sub:"VSD event & alarm log · filter & timeline",
+    eyebrow:"Data source · VSD event log", droptitle:"Drop your log CSV here",
+    dropsub:"or click to choose · VSD event/alarm export (Date time, Event)",
+    drophint:"events are auto-categorized: trip, alarm, warning, drive, operator, config, system",
+    colTime:"Time", colCat:"Category", colEvt:"Event", search:"Search events…", export:"Export CSV",
+    events:"events", range:"range", showing:"showing", of:"of",
+    errEmpty:"File is empty.", errNoEvents:"No events found. Expected a 'Date time, Event' log.",
+    errRead:"Failed to read file.", well:"Well", sn:"S/N",
+    cat_trip:"trip", cat_alarm:"alarm", cat_warning:"warning", cat_drive:"drive", cat_operator:"operator", cat_config:"config", cat_system:"system", cat_other:"other",
+    foot:"ESP Log Viewer · standalone · VSD event logs" },
+  id:{title:"ESP Log Viewer", sub:"log event & alarm VSD · filter & timeline",
+    eyebrow:"Sumber data · log event VSD", droptitle:"Lepas file log CSV di sini",
+    dropsub:"atau klik untuk memilih · export event/alarm VSD (Date time, Event)",
+    drophint:"event dikategorikan otomatis: trip, alarm, warning, drive, operator, config, system",
+    colTime:"Waktu", colCat:"Kategori", colEvt:"Event", search:"Cari event…", export:"Ekspor CSV",
+    events:"event", range:"rentang", showing:"tampil", of:"dari",
+    errEmpty:"File kosong.", errNoEvents:"Tidak ada event. Diharapkan log 'Date time, Event'.",
+    errRead:"Gagal membaca file.", well:"Sumur", sn:"S/N",
+    cat_trip:"trip", cat_alarm:"alarm", cat_warning:"warning", cat_drive:"drive", cat_operator:"operator", cat_config:"config", cat_system:"system", cat_other:"lainnya",
+    foot:"ESP Log Viewer · mandiri · log event VSD" }
+};
+const t=k=>T[LANG][k]??k;
+
+/* ---------- date parsing (DD/MM/YYYY or MM/DD/YYYY auto) ---------- */
+function detectDMY(rows){
+  for(const r of rows){ const m=r.date.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/); if(m){ if(+m[1]>12) return true; if(+m[2]>12) return false; } }
+  return true; // default DD/MM
+}
+function parseDate(str,dmy){
+  const m=str.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})[ T]+(\d{1,2}):(\d{2}):(\d{2})/);
+  if(!m) return null;
+  const a=+m[1], b=+m[2], y=+m[3], h=+m[4], mi=+m[5], s=+m[6];
+  const day=dmy?a:b, mon=dmy?b:a;
+  return new Date(y, mon-1, day, h, mi, s);
+}
+
+/* ---------- parse log ---------- */
+function parseLog(text){
+  const lines=text.split(/\r?\n/).filter(l=>l.trim());
+  // meta from any early line with "well name"
+  META={well:'', sn:''};
+  for(let i=0;i<Math.min(lines.length,4);i++){
+    const wm=lines[i].match(/well\s*name\s*:\s*([^,]+)/i); if(wm) META.well=wm[1].trim();
+    const sm=lines[i].match(/\bsn\s*:\s*([^,]+)/i); if(sm) META.sn=sm[1].trim();
+  }
+  // find header row
+  let start=0;
+  for(let i=0;i<Math.min(lines.length,6);i++){ if(/date\s*time\s*,\s*event/i.test(lines[i])){ start=i+1; break; } }
+  const raw=[];
+  for(let i=start;i<lines.length;i++){
+    const idx=lines[i].indexOf(','); if(idx<0) continue;
+    const date=lines[i].slice(0,idx).trim(), ev=lines[i].slice(idx+1).trim();
+    if(!date || !ev) continue;
+    raw.push({date, ev});
+  }
+  if(!raw.length) throw new Error(t('errNoEvents'));
+  const dmy=detectDMY(raw);
+  const events=raw.map(r=>({ date:r.date, ts:parseDate(r.date,dmy), ev:r.ev, cat:categorize(r.ev), cleared:isCleared(r.ev) }));
+  return events;
+}
+
+/* ---------- render ---------- */
+function showResult(events){
+  EVENTS=events; ACTIVE=new Set(CATS); SEARCH='';
+  document.getElementById('result').style.display='block';
+  { const dz=document.getElementById('drop'); dz.classList.add('compact'); document.getElementById('t-droptitle').textContent=LANG==='id'?'Ganti file':'Change file'; document.getElementById('t-dropsub').classList.add('hidden'); }
+  document.getElementById('search').value='';
+  refresh();
+}
+function counts(){ const c={}; CATS.forEach(k=>c[k]=0); EVENTS.forEach(e=>c[e.cat]++); return c; }
+function refresh(){
+  if(!EVENTS.length) return;
+  const c=counts();
+  // meta line
+  const ts=EVENTS.map(e=>e.ts).filter(Boolean);
+  const t0=ts.length?ts[0]:null, t1=ts.length?ts[ts.length-1]:null;
+  const rng=(t0&&t1)?`${fmtTime(t0,true)} → ${fmtTime(t1,true)}`:'';
+  document.getElementById('metaline').innerHTML=
+    (META.well?`<b>${t('well')}:</b> ${META.well} &nbsp; `:'')+
+    (META.sn?`<b>${t('sn')}:</b> ${META.sn} &nbsp; `:'')+
+    `<b>${EVENTS.length}</b> ${t('events')}`+(rng?` &nbsp; · &nbsp; ${rng}`:'');
+  document.getElementById('status').innerHTML=`<b>${EVENTS.length}</b> ${t('events')}`;
+  // chips
+  const chips=document.getElementById('chips'); chips.innerHTML='';
+  CATS.forEach(k=>{ if(!c[k]) return;
+    const on=ACTIVE.has(k), el=document.createElement('span');
+    el.className='chip '+(on?'on':'off'); el.dataset.k=k;
+    el.innerHTML=`<span class="cdot" style="background:${CATCOLOR[k]}"></span>${t('cat_'+k)} <span class="cc">${c[k]}</span>`;
+    el.addEventListener('click',()=>{ if(ACTIVE.has(k))ACTIVE.delete(k); else ACTIVE.add(k); refresh(); });
+    chips.appendChild(el);
+  });
+  // timeline
+  drawTimeline(t0,t1);
+  document.getElementById('tlStart').textContent=t0?fmtTime(t0):'';
+  document.getElementById('tlEnd').textContent=t1?fmtTime(t1):'';
+  // table
+  drawTable();
+}
+function fmtTime(d,withDate){
+  if(!d) return '';
+  const p=n=>String(n).padStart(2,'0');
+  const hms=`${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+  return withDate?`${p(d.getDate())}/${p(d.getMonth()+1)} ${hms}`:hms;
+}
+function drawTimeline(t0,t1){
+  const tl=document.getElementById('timeline'); tl.innerHTML='';
+  if(!t0||!t1||t1<=t0) return;
+  const span=t1-t0;
+  EVENTS.forEach(e=>{
+    if(!e.ts) return; if(!ACTIVE.has(e.cat)) return;
+    const x=(e.ts-t0)/span*100;
+    const i=document.createElement('i');
+    i.style.left=x+'%'; i.style.background=CATCOLOR[e.cat];
+    if(e.cat==='trip'){ i.style.width='3px'; i.style.top='2px'; i.style.bottom='2px'; }
+    i.title=`${fmtTime(e.ts,true)} — ${e.ev}`;
+    tl.appendChild(i);
+  });
+}
+function filtered(){
+  const q=SEARCH.trim().toLowerCase();
+  return EVENTS.filter(e=>ACTIVE.has(e.cat) && (!q || e.ev.toLowerCase().includes(q)));
+}
+function drawTable(){
+  const rows=filtered(), tb=document.getElementById('tbody'); tb.innerHTML='';
+  document.getElementById('count').textContent=`${t('showing')} ${rows.length} ${t('of')} ${EVENTS.length} ${t('events')}`;
+  const frag=document.createDocumentFragment();
+  rows.forEach(e=>{
+    const tr=document.createElement('tr'); if(e.cleared) tr.className='cleared';
+    const badge=`<span class="badge" style="background:${hexA(CATCOLOR[e.cat],.16)};color:${CATCOLOR[e.cat]}">${t('cat_'+e.cat)}</span>`;
+    tr.innerHTML=`<td class="time">${e.ts?fmtTime(e.ts,true):e.date}</td><td class="cat">${badge}</td><td class="evt">${esc(e.ev)}</td>`;
+    frag.appendChild(tr);
+  });
+  tb.appendChild(frag);
+}
+function hexA(hex,a){ const n=parseInt(hex.slice(1),16); return `rgba(${(n>>16)&255},${(n>>8)&255},${n&255},${a})`; }
+function esc(s){ return s.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+
+/* ---------- apply language ---------- */
+function applyLang(){
+  document.documentElement.lang=LANG;
+  const set=(id,k)=>{const el=document.getElementById(id); if(el) el.textContent=t(k);};
+  set('t-title','title'); set('t-sub','sub'); set('t-eyebrow','eyebrow');
+  set('t-droptitle','droptitle'); set('t-dropsub','dropsub'); set('t-drophint','drophint');
+  set('t-colTime','colTime'); set('t-colCat','colCat'); set('t-colEvt','colEvt'); set('foot','foot');
+  document.getElementById('search').placeholder=t('search');
+  document.getElementById('exportCsv').textContent=t('export');
+  document.querySelectorAll('#langToggle button').forEach(b=>b.classList.toggle('on',b.dataset.lang===LANG));
+  if(EVENTS.length) refresh();
+}
+
+/* ---------- file handling ---------- */
+function showErr(m){ const e=document.getElementById('err'); e.textContent='⚠ '+m; e.classList.remove('hidden'); }
+function handleFile(f){
+  document.getElementById('err').classList.add('hidden');
+  const reader=new FileReader();
+  reader.onerror=()=>showErr(t('errRead'));
+  reader.onload=()=>{ try{
+    const text=reader.result;
+    if(!text.trim()) throw new Error(t('errEmpty'));
+    const events=parseLog(text);
+    showResult(events);
+  }catch(e){ showErr(e.message); } };
+  reader.readAsText(f);
+}
+function exportCSV(){
+  const rows=filtered();
+  const lines=['Date time,Category,Event'];
+  rows.forEach(e=>{ const ev=`"${e.ev.replace(/"/g,'""')}"`; lines.push(`${e.date},${t('cat_'+e.cat)},${ev}`); });
+  const blob=new Blob([lines.join('\n')],{type:'text/csv'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='esp-log-filtered.csv'; a.click();
+}
+
+/* ---------- wiring ---------- */
+const drop=document.getElementById('drop'), fileInput=document.getElementById('file');
+drop.addEventListener('click',()=>fileInput.click());
+['dragover','dragenter'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('hot');}));
+['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('hot');}));
+drop.addEventListener('drop',e=>{ const f=e.dataTransfer.files[0]; if(f) handleFile(f); });
+fileInput.addEventListener('change',e=>{ const f=e.target.files[0]; if(f) handleFile(f); });
+document.getElementById('search').addEventListener('input',e=>{ SEARCH=e.target.value; drawTable(); });
+document.getElementById('exportCsv').addEventListener('click',exportCSV);
+document.getElementById('langToggle').addEventListener('click',e=>{ if(e.target.tagName!=='BUTTON')return; LANG=e.target.dataset.lang; try{localStorage.setItem('espl_lang',LANG);}catch(_){}; applyLang(); });
+try{ const s=localStorage.getItem('espl_lang'); if(s==='en'||s==='id')LANG=s; else if((navigator.language||'').toLowerCase().startsWith('id'))LANG='id'; }catch(_){}
+applyLang();
+</script>
+</body>
+</html>
